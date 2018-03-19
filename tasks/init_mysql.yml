@@ -1,0 +1,46 @@
+---
+# tasks file for mysql
+
+- name: Modify the root user password
+  mysql_user:
+    login_user: root
+    login_unix_socket: "{{ mysql_dir }}/my3306/run/mysql.sock"
+    name: root
+    password: 123456
+    host: "%"
+    priv: '*.*:ALL'
+    state: present
+
+- name: Create database sysbench
+  mysql_db:
+    login_host: "{{ mysql_host }}"
+    login_password: 123456
+    login_port: 3306
+    login_user: root
+    state: present
+    name: tpcc1000
+ 
+- name: import create table sql
+  mysql_db:
+    login_host: "{{ mysql_host }}"
+    login_password: 123456
+    login_port: 3306
+    login_user: root
+    state: import
+    name: tpcc1000
+    target: "{{ item.sql }}"
+  with_items:
+    - { sql: '{{ root_dir }}/tpcc/create_table-autoinc-pk.sql' }
+  environment:
+    PATH: "{{ mysql_dir }}/my3306/bin:{{ ansible_env.PATH }}"
+    LD_LIBRARY_PATH: "{{ mysql_dir }}/my3306/lib:{{ ansible_env.LD_LIBRARY_PATH }}"
+      
+- name: load the test data
+  shell: |
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:{{ mysql_dir }}/my3306/lib
+    ./tpcc_load {{ mysql_host }} tpcc1000 root 123456  50
+  args:
+    chdir: "{{ root_dir }}/tpcc"
+  environment:
+    PATH: "{{ mysql_dir }}/my3306/bin:{{ ansible_env.PATH }}"
+    LD_LIBRARY_PATH: "{{ mysql_dir }}/my3306/lib:{{ ansible_env.LD_LIBRARY_PATH }}"

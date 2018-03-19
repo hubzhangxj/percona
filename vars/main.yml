@@ -1,0 +1,12 @@
+---
+# vars file for mysql
+
+alisql_ins: 3306
+
+root_dir: /root/mysql_test
+
+mysql_dir: /u01
+
+mysql_host: 192.168.1.162
+
+test_time: 100

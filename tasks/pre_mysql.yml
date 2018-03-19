@@ -1,0 +1,64 @@
+---
+# tasks file for mysql
+
+- name: Install pre-some packages
+  yum: name={{ item }} state=present
+  with_items:
+    - MySQL-python
+    - flex
+    - bison
+    - cmake
+    - libaio-devel
+    - readline
+    - readline-devel
+  when: ansible_os_family == "RedHat"
+  
+- name: Install pre-some packages in Ubuntu
+  apt: name={{ item }} state=present
+  with_items:
+    - MySQL-python
+    - flex
+    - bison
+    - cmake
+    - libaio-devel
+    - readline
+    - readline-devel
+  when: ansible_os_family == "Debian"
+
+- name: remove all files in dst
+  file:
+    path: "{{ root_dir }}"
+    state: absent
+
+- name: crate the des directory
+  file:
+    path: "{{ root_dir }}"
+    owner: root
+    group: root
+    mode: 0777
+    state: directory
+    
+- name: crate the tpcc script directory
+  file:
+    path: "{{ root_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: 0777
+    state: directory
+  with_items:
+    - mysql
+    - tpcc
+    - boost
+    - jemalloc
+
+- name: download the source code
+  get_url: url={{ item.url }} dest="{{ root_dir }}"
+  with_items:
+    - { url: 'https://github.com/percona/percona-server/archive/Percona-Server-5.7.14-8.tar.gz' }
+    - { url: 'https://github.com/jemalloc/jemalloc/archive/5.0.1.tar.gz' }
+
+- name: git clone  mysql-tpcc
+  git: 
+    repo: https://github.com/yejr/tpcc-mysql-autoinc-pk.git
+    dest: "{{ root_dir }}/tpcc"
+    

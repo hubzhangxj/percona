@@ -1,0 +1,29 @@
+---
+# tasks file for mysql
+
+- name: use the tpcc to test the database 
+  shell: |
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:{{ mysql_dir }}/my3306/lib
+    ./tpcc_start -h {{ mysql_host }} -P3306 -dtpcc1000 -uroot -p "123456" -w50 -c100 -r300 -l {{ test_time }}
+  args:
+    chdir: "{{ root_dir }}/tpcc"
+  register: percona_result
+  ignore_errors: yes
+  environment:
+    PATH: "{{ mysql_dir }}/my3306/bin:{{ ansible_env.PATH }}"
+    LD_LIBRARY_PATH: "{{ mysql_dir }}/my3306/lib:{{ ansible_env.LD_LIBRARY_PATH }}"
+
+- name: clear the test result
+  file:
+    path: "/tmp/percona_result.log"
+    state: absent
+    
+- name: get percona test result
+  lineinfile: 
+    create: yes 
+    dest: "/tmp/percona_result.log" 
+    line: "{{ percona_result.stdout }}"
+    state: present
+   
+- name: Kill alisql server on ARM64 Server
+  shell: ps -ef | grep mysql | grep -v grep | awk '{print "kill -9 " $2}' | sh & 

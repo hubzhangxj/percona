@@ -1,0 +1,79 @@
+---
+# tasks file for mysql
+
+- name: copy mysql configuration files
+  template:
+    src: my.cnf.j2
+    dest: /etc/my.conf
+    mode: 0660
+    owner: mysql
+    group: mysql
+
+- name: Kill alisql server on ARM64 Server
+  shell: ps -ef | grep mysql | grep -v grep | awk '{print "kill -9 " $2}' | sh &
+ 
+- name: create local dir
+  file:
+    path: "{{ mysql_dir }}/my3306"
+    mode: 0755
+    owner: mysql
+    group: mysql
+    state: directory
+
+- name: create data dir
+  file:
+    path: "{{ mysql_dir }}/mysql"
+    mode: 0755
+    owner: mysql
+    group: mysql
+    state: directory
+
+- name: create tmp dir
+  file:
+    path: "{{ mysql_dir }}/my3306/tmp"
+    mode: 0755
+    owner: mysql
+    group: mysql
+    state: directory
+
+- name: create log dir
+  file:
+    path: "{{ mysql_dir }}/my3306/log"
+    mode: 0755
+    owner: mysql
+    group: mysql
+    state: directory
+
+- name: create run dir
+  file:
+    path: "{{ mysql_dir }}/my3306/run"
+    mode: 0755
+    owner: mysql
+    group: mysql
+    state: directory
+
+- name: initialize the mysql server
+  shell: |
+
+    /u01/my3306/bin/mysqld --defaults-file=/etc/my.conf --initialize-insecure
+    sleep 100
+    chown -L -R mysql.mysql {{ mysql_dir }}
+
+    {{ mysql_dir }}/my3306/bin/mysqld_safe  --defaults-file=/etc/my.conf \
+                                 --user=mysql &
+    sleep 100 
+  environment:
+    PATH: "{{ mysql_dir }}/my3306/bin:{{ ansible_env.PATH }}"
+    LD_LIBRARY_PATH: "{{ mysql_dir }}/my3306/lib:{{ ansible_env.LD_LIBRARY_PATH }}" 
+ 
+- name: build tpcc script
+  shell: |
+    
+    make
+    
+    sleep 30 
+  environment:
+    PATH: "{{ mysql_dir }}/my3306/bin:{{ ansible_env.PATH }}"
+    LD_LIBRARY_PATH: "{{ mysql_dir }}/my3306/lib:{{ ansible_env.LD_LIBRARY_PATH }}"
+  args:
+    chdir: "{{ root_dir }}/tpcc/src" 

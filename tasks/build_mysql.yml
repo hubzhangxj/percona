@@ -1,0 +1,100 @@
+---
+# tasks file for mysql
+- name: create user mysql
+  user:
+    name: mysql
+    group: mysql
+
+- name: create data directory
+  file:
+    path: "{{ mysql_dir }}"
+    owner: mysql
+    group: mysql
+    mode: 0755
+    state: directory
+
+- name: Kill alisql server on ARM64 Server
+  shell: |
+    ps -ef | grep mysql | grep -v grep | awk '{print "kill -9 " $2}' | sh 
+    sleep 60
+
+- name: unmount the u01 directory to /dev/nvme0n1
+  mount:
+    path: "{{ mysql_dir }}"
+    src:  /dev/nvme0n1
+    fstype: ext4
+    state: unmounted
+
+- name: Create a ext4 filesystem on /dev/nvme0n1
+  filesystem:
+    fstype: ext4
+    dev: /dev/nvme0n1
+    force: yes
+
+- name: mount the u01 directory to /dev/nvme0n1
+  mount:
+    path: "{{ mysql_dir }}"
+    src:  /dev/nvme0n1
+    fstype: ext4
+    opts: defaults,nobarrier,noatime,nodiratime,max_batch_time=0,discard 
+    state: mounted
+
+- name: unarchive all souce codes
+  unarchive: 
+    src: "{{ item.src }}"
+    dest: "{{ root_dir }}/{{ item.dst }}" 
+    extra_opts: [--strip-components=1]
+  with_items:
+    - { src: '{{ root_dir }}/percona-server-Percona-Server-5.7.14-8.tar.gz', dst: 'mysql' }
+    - { src: '{{ root_dir }}/jemalloc-5.0.1.tar.gz', dst: 'jemalloc' }
+ 
+- name: copy the bugfix file
+  template:
+    src: ib0mutex.h.j2
+    dest: "{{ root_dir }}/mysql/storage/innobase/include/ib0mutex.h"
+    owner: root
+    group: root
+    mode: 0600
+    
+- name: check the jemalloc so
+  stat: 
+    path: /usr/local/jemalloc/lib/libjemalloc.a
+  register: file_existed
+  
+- name: if not exists, install jemalloc
+  shell: |
+    autogen.sh
+    ./configure --prefix=/usr/lib64
+    make -sj
+    make install -sj
+    echo "/usr/lib64/lib" >> /etc/ld.so.conf.d/jemalloc.conf
+  args:
+    chdir: "{{ root_dir }}/jemalloc"
+  when: file_existed.stat.exists == false
+  ignore_errors: true
+    
+- name: install percona
+  shell: |
+    
+    ./autorun.sh 
+
+    cmake .. -DCMAKE_INSTALL_PREFIX={{ mysql_dir }}/my3306 \
+         -DMYSQL_DATADIR={{ mysql_dir }}/my3306/data \
+         -DDOWNLOAD_BOOST=1 \
+         -DWITH_BOOST=../../boost \
+         -DMYSQL_USER=mysql  \
+         -DSYSCONFDIR=/etc \
+         -DWITH_MYISAM_STORAGE_ENGINE=1 \
+         -DWITH_INNOBASE_STORAGE_ENGINE=1 -DWITH_MEMORY_STORAGE_ENGINE=1 \
+         -DMYSQL_UNIX_ADDR={{ mysql_dir }}/my3306/run/mysql.sock -DMYSQL_TCP_PORT=3306 \
+         -DENABLED_LOCAL_INFILE=1 -DWITH_PARTITION_STORAGE_ENGINE=1 \
+         -DEXTRA_CHARSETS=all \
+         -DDEFAULT_CHARSET=utf8 \
+         -DDEFAULT_COLLATION=utf8_general_ci \
+         -DBUILD_CONFIG=mysql_release
+
+    make -sj 32
+
+    make install -sj 32
+  args:
+    chdir: "{{ root_dir }}/mysql/BUILD"
